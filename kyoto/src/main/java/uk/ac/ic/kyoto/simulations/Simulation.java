@@ -1,5 +1,11 @@
 package uk.ac.ic.kyoto.simulations;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -30,10 +36,7 @@ import uk.ac.ic.kyoto.services.ParticipantCarbonReportingService;
 import uk.ac.ic.kyoto.services.ParticipantTimeService;
 import uk.ac.ic.kyoto.services.TradeHistoryService;
 import uk.ac.ic.kyoto.singletonfactory.SingletonProvider;
-import uk.ac.ic.kyoto.util.sim.jsonobjects.DataProvider;
-import uk.ac.ic.kyoto.util.sim.jsonobjects.JSONObjectContainer;
 import uk.ac.ic.kyoto.util.sim.jsonobjects.simulations.CountryData;
-import uk.ac.ic.kyoto.util.sim.jsonobjects.simulations.SimulationData;
 import uk.ac.imperial.presage2.core.simulator.InjectedSimulation;
 import uk.ac.imperial.presage2.core.simulator.Parameter;
 import uk.ac.imperial.presage2.core.simulator.Scenario;
@@ -46,6 +49,8 @@ import com.google.inject.AbstractModule;
 
 public class Simulation extends InjectedSimulation {
 	
+	final private Logger logger = Logger.getLogger(Simulation.class);
+
 	@Parameter(name="GROWTH_MARKET_STATE")
 	public double GROWTH_MARKET_STATE;
 	@Parameter(name="STABLE_MARKET_STATE")
@@ -92,7 +97,10 @@ public class Simulation extends InjectedSimulation {
 	public int MINIMUM_KYOTO_MEMBERSHIP_DURATION;
 	@Parameter(name="TICK_YEAR")
 	public int TICK_YEAR;
+	@Parameter(name="COUNTRIES")
+	public String COUNTRIES = "";
 
+	String countryDataSource = "countrydata.csv";
 		
 	@Override
 	protected Set<AbstractModule> getModules() {
@@ -158,18 +166,14 @@ public class Simulation extends InjectedSimulation {
 	protected void addToScenario(Scenario s) {
 		// TODO Auto-generated method stub
 		
-		//Something new
-		Logger logger = Logger.getLogger(Simulation.class);
 		try{
-			JSONObjectContainer<SimulationData> obj = new DataProvider().getSimulationData(this.simPersist.getID());
+			Map<String, CountryData> countries = getCountriesFromCSV();
 			
-			if(obj.getObject().getCountries() == null || obj.getObject().getCountries().isEmpty()){
+			if(countries.isEmpty()){
 				//TODO uncomment for final code
 				throw new NoCountryDataException(); //Commented out for now.
-			}
+			} else {
 				
-			if(obj.getObject().getCountries() != null && !obj.getObject().getCountries().isEmpty()){
-				Map<String,CountryData> countries = obj.getObject().getCountries();
 				for(String countryKey : countries.keySet()){
 					logger.info(countries.get(countryKey));
 					String className = countries.get(countryKey).getClassName();
@@ -250,5 +254,77 @@ public class Simulation extends InjectedSimulation {
 		SingletonProvider.getTradeHistory().setSimID(this.simPersist.getID());
 	
 
+	}
+
+	Map<String, CountryData> getCountriesFromCSV()
+			throws NoCountryDataException {
+		Map<String, CountryData> countriesData = new HashMap<String, CountryData>();
+		// get set of ISO codes for countries to include in this simulation.
+		Set<String> included = new HashSet<String>();
+		included.addAll(Arrays.asList(COUNTRIES.split(",")));
+
+		InputStream is = null;
+		InputStreamReader isReader = null;
+		BufferedReader countryCsv = null;
+		try {
+			// attempt to load csv county data
+			is = this.getClass().getClassLoader()
+					.getResourceAsStream(this.countryDataSource);
+			isReader = new InputStreamReader(is);
+			countryCsv = new BufferedReader(isReader);
+
+			// discard first line, just headings
+			countryCsv.readLine();
+
+			String line = null;
+
+			do {
+				line = countryCsv.readLine();
+				if (line != null) {
+					String[] values = line.split(",");
+					if (values.length != 10) {
+						logger.warn("Missing/malformed line in countrydata.csv: '"
+								+ line + "'");
+						continue;
+					}
+					// check ISO code to see if we should load this CountryData
+					if (!included.contains(values[2]))
+						continue;
+					CountryData c = new CountryData();
+					c.setClassName(values[0]);
+					c.setName(values[1]);
+					c.setAgentName(values[1]);
+					c.setISO(values[2]);
+					c.setLandArea(values[3]);
+					c.setArableLandArea(values[4]);
+					c.setGDP(values[5]);
+					c.setGDPRate(values[6]);
+					c.setEnergyOutput(values[7]);
+					c.setCarbonOutput(values[8]);
+					c.setCarbonOutput1990(values[9]);
+					countriesData.put(c.getISO(), c);
+				}
+			} while (line != null);
+
+		} catch (IOException e) {
+			throw new NoCountryDataException();
+		} finally {
+			if (countryCsv != null)
+				try {
+					countryCsv.close();
+				} catch (IOException e) {
+				}
+			if (isReader != null)
+				try {
+					isReader.close();
+				} catch (IOException e) {
+				}
+			if (is != null)
+				try {
+					is.close();
+				} catch (IOException e) {
+				}
+		}
+		return countriesData;
 	}
 }

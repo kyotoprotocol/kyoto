@@ -26,6 +26,26 @@ public class CountryData{
 	private String energyOutput;
 	private String carbonOutput;
 	
+	public CountryData() {
+		super();
+	}
+
+	public CountryData(String className, String name, String iSO, String landArea,
+			String arableLandArea, String gDP, String gDPRate,
+			String energyOutput, String carbonOutput, String carbonOutput1990) {
+		super();
+		this.className = className;
+		this.name = name;
+		ISO = iSO;
+		this.landArea = landArea;
+		this.arableLandArea = arableLandArea;
+		GDP = gDP;
+		GDPRate = gDPRate;
+		this.energyOutput = energyOutput;
+		this.carbonOutput = carbonOutput;
+		this.carbonOutput1990 = carbonOutput1990;
+	}
+
 	public String toString(){
 		String s = "";
 		s += " { \"Type\" : \"" + Type + "\"";
